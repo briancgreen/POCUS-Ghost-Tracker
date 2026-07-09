@@ -1,0 +1,17 @@
+[2026-07-06 10:00:00,000] [0x00000670] [INFO ] [doppler.state.power] - ---Doppler Start---
+[2026-07-06 10:00:02,000] [0x00000670] [INFO ] [doppler.operation.replay] - Peek UI2 touch event
+[2026-07-06 10:00:05,000] [0x00000670] [INFO ] [doppler.metrics.USR] - LOGIN:drsmith
+[2026-07-06 10:00:10,000] [0x00000670] [INFO ] [doppler.metrics.patient] - PAT:Start
+[2026-07-06 10:00:15,000] [0x00000670] [INFO ] [doppler.image] - StartScan  start!
+[2026-07-06 10:00:20,000] [0x00000670] [INFO ] [doppler.application.HandleExamModeChanged] - Current:Probe[C5-1]ExamMode[Abdomen]
+[2026-07-06 10:00:25,000] [0x00000670] [INFO ] [doppler.image] - FrontEnd Freeze start!
+[2026-07-06 10:00:30,000] [0x00000670] [INFO ] [doppler.application.file.save] - USysFileHandler save image(PATIENTDATA\20260706\20260706-100000-0001-demo\ABDOMEN.FRM, save mode:0)
+[2026-07-06 10:00:32,000] [0x00000670] [INFO ] [doppler.application.file.save] - USysFileHandler::FinishSaveSysFile, result=OK
+[2026-07-06 10:00:40,000] [0x00000670] [INFO ] [doppler.metrics.exam] - EXAMMODE:Abdomen
+[2026-07-06 10:00:45,000] [0x00000670] [INFO ] [doppler.metrics.USR] - LOGOUT:drsmith
+[2026-07-06 13:00:00,000] [0x00000670] [INFO ] [doppler.perf] - CPU 12%
+[2026-07-06 16:00:00,000] [0x00000670] [INFO ] [doppler.image] - StartScan  start!
+[2026-07-06 16:00:05,000] [0x00000670] [INFO ] [doppler.application.HandleExamModeChanged] - Current:Probe[C5-1]ExamMode[FAST]
+[2026-07-06 16:00:20,000] [0x00000670] [INFO ] [doppler.image] - FrontEnd Freeze start!
+[2026-07-06 16:00:40,000] [0x00000670] [INFO ] [doppler.image] - StartScan  start!
+[2026-07-06 19:00:00,000] [0x00000670] [INFO ] [doppler.state.power] - Begin Shutdown

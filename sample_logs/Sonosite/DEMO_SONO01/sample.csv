@@ -1,0 +1,17 @@
+LogType,Date,Content,Associated File,Sev,Seq
+System,2026-07-06 09:00:00.0000,"{""description"":""System ready""}",None,INFO,1
+Event,2026-07-06 09:00:05.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_SYSTEM_READY"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,2
+ePHI,2026-07-06 09:00:10.0000,"{""description"":""(PatientPPS::SetStudyInProgress) - Study created; Sono Study Instance UID: 1.2.3.DEMO.0001""}",None,INFO,3
+Event,2026-07-06 09:00:15.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_IMAGING_STARTED"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,4
+Event,2026-07-06 09:00:20.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""SYSEVENT_IMG_SET_GAINS_2D"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,5
+Event,2026-07-06 09:00:25.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""SYSEVENT_IMG_IMAGING_FREEZE"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,6
+Event,2026-07-06 09:00:30.0000,"{""command"":""RSICOMMAND_ACTION"",""event"":""RSIACTION_IMAGE_CAPTURE"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,7
+Event,2026-07-06 09:00:35.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_ALL_IMAGE_SAVE_COMPLETE"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,8
+Event,2026-07-06 09:00:40.0000,"{""command"":""RSICOMMAND_ACTION"",""event"":""RSIACTION_END_EXAM"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,9
+ePHI,2026-07-06 09:00:45.0000,"{""description"":""(aProcedureMonitor::processEndExamComplete) - Exam completed; Sono Study Instance UID: 1.2.3.DEMO.0001""}",None,INFO,10
+Event,2026-07-06 12:00:00.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_BATTERY_STATUS"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,11
+Event,2026-07-06 15:00:00.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_IMAGING_STARTED"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,12
+Event,2026-07-06 15:00:05.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""SYSEVENT_IMG_SET_DEPTH_INDEX"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,13
+Event,2026-07-06 15:00:20.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""SYSEVENT_IMG_IMAGING_FREEZE"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,14
+Event,2026-07-06 15:00:30.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""SYSEVENT_IMG_IMAGING_UNFREEZE"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,15
+Event,2026-07-06 18:00:00.0000,"{""command"":""RSICOMMAND_STATUS"",""event"":""RSIEVENT_BATTERY_STATUS"",""parameters"":[],""protocol"":""RSIPROTOCOL_M2_COCHRAN""}",None,INFO,16

@@ -1,0 +1,1147 @@
+{
+  "_comment": "Pattern rules for POCUS utilization log analysis. Each event has per-vendor patterns and optional exclude_patterns. Weights: 1.0=definitive, 0.7-0.9=strong, 0.3-0.6=supporting/contextual.",
+  "_timestamp_formats": {
+    "_comment": "One entry per vendor. 'regex' must have exactly one capture group covering the full timestamp text (including any separators like ',' before milliseconds). 'strptime' parses that captured text directly - literal separator characters (comma, slash, period) go straight into the format string, no need to normalize them in code.",
+    "Mindray": {
+      "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
+      "strptime": "%Y-%m-%d %H:%M:%S,%f",
+      "note": "Mindray TEX: '[YYYY-MM-DD HH:MM:SS,mmm]'"
+    },
+    "Mindray_M6": {
+      "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
+      "strptime": "%Y-%m-%d %H:%M:%S,%f",
+      "note": "Identical bracket format to standard Mindray - kept as a separate entry in case M6 firmware diverges in a future sample"
+    },
+    "GE": {
+      "regex": "(\\w+,\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+\\.\\d+,\\d{4})",
+      "strptime": "%A,%b %d %H:%M:%S.%f,%Y",
+      "note": "GE Venue Go: 'Weekday,Mon DD HH:MM:SS.mmm,YYYY' - timestamp is not at the start of the line, so no leading ^ anchor"
+    },
+    "GE_Logiq": {
+      "regex": "^(\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})",
+      "strptime": "%Y/%m/%d %H:%M:%S.%f",
+      "note": "GE LOGIQ e: 'YYYY/MM/DD HH:MM:SS.mmm'"
+    },
+    "Sonosite": {
+      "regex": "^\\w+,(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{4})",
+      "strptime": "%Y-%m-%d %H:%M:%S.%f",
+      "note": "Sonosite CSV: 'LogType,YYYY-MM-DD HH:MM:SS.ffff,...' - 4-digit fractional seconds, strptime's %f left-justifies into microseconds so this parses correctly without modification"
+    }
+  },
+  "exam_started": {
+    "category": "exam_lifecycle",
+    "description": "New patient/exam created on the device",
+    "tags": [
+      "exam",
+      "workflow",
+      "strong_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "SimplePatientManager.*Finished CreateNewPatient",
+            "weight": 1.0,
+            "note": "Patient record successfully created (manual entry)"
+          },
+          {
+            "regex": "ExtendedGui\\.Patient.*NewPatient started from tab WorkListTabViewModel",
+            "weight": 1.0,
+            "note": "Patient selected from MWL worklist - highest documentation signal"
+          },
+          {
+            "regex": "ExtendedGui\\.Patient.*NewPatient started from tab CurrentPatientTabViewModel",
+            "weight": 0.9,
+            "note": "New patient created manually from current patient tab"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.metrics\\.patient\\] - PAT:Start",
+            "weight": 1.0,
+            "note": "Patient session started \u2014 definitive exam open signal"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "UserEventLog.*Activating package: Patient\\.EMNewPatient",
+            "weight": 1.0,
+            "note": "Patient entry screen opened \u2014 user is entering/selecting patient"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "Event:GUI Dialog Showup\\]\\s*\\{\\{Import from iStation\\}\\}",
+            "weight": 0.5,
+            "note": "TENTATIVE \u2014 older M6 firmware has no doppler.metrics.* channel like standard Mindray, so no clean patient-registration signal was found. This only confirms the iStation patient-import dialog was opened, not that a patient was actually selected. Recommend revisiting if a stronger signal turns up in future M6 samples."
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "Study created; Sono Study Instance UID",
+            "weight": 1.0,
+            "note": "ePHI stream: study record created with Study Instance UID \u2014 UID is generated regardless of PHI-export setting, so this is the most reliable exam-start signal"
+          },
+          {
+            "regex": "\\bRSIACTION_UI_FINISH_PATIENT_INFO\\b",
+            "weight": 0.7,
+            "note": "Corroborating: user completed the patient info entry screen"
+          },
+          {
+            "regex": "\\bRSIEVENT_PATIENT_ADDED\\b",
+            "weight": 0.7,
+            "note": "Found in a second, larger batch of real logs to be the dominant patient-registration signal by far (2750 occurrences vs. 280 for NEW_REGISTERED_PATIENT in that batch). Appears to double-fire per actual add action (an ERROR-type echo plus a STATUS-type confirmation with a real patient ID, ~200ms apart) so weighted as corroborating rather than 1.0 definitive."
+          },
+          {
+            "regex": "\\bRSIEVENT_NEW_REGISTERED_PATIENT\\b",
+            "weight": 0.6,
+            "note": "Corroborating: new patient registered on RSI event bus \u2014 sometimes fires with placeholder parameter value, treated as supporting signal only"
+          }
+        ]
+      }
+    }
+  },
+  "exam_ended_by_user": {
+    "category": "exam_lifecycle",
+    "description": "User explicitly pressed the End Exam button",
+    "tags": [
+      "exam",
+      "workflow",
+      "strong_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "VirtualControl: control=PatientEndExamCtrl",
+            "weight": 1.0,
+            "note": "Physical or touch End Exam button pressed by user"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.metrics\\.USR\\] - LOGOUT:",
+            "weight": 0.8,
+            "note": "User logout \u2014 implies end of exam session; closest Mindray proxy to end-exam"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "UserEventLog.*Deactivating package: Patient\\.EMNewPatient",
+            "weight": 1.0,
+            "note": "Patient entry screen closed \u2014 exam committed and dismissed"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIACTION_END_EXAM\\b",
+            "weight": 1.0,
+            "note": "User pressed the End Exam action \u2014 direct analog to GE's PatientEndExamCtrl"
+          }
+        ]
+      }
+    }
+  },
+  "exam_completed": {
+    "category": "exam_lifecycle",
+    "description": "Exam/study successfully committed and closed by the system",
+    "tags": [
+      "exam",
+      "workflow",
+      "strong_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EPM_CMD_EndPatient.*Study with UID .* has been closed",
+            "weight": 1.0,
+            "note": "Study UID closed - definitive exam commit confirmation"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.metrics\\.exam\\] - EXAMMODE:",
+            "weight": 1.0,
+            "note": "Exam mode committed to metrics \u2014 fires when exam is formally recorded"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EchoPatientRad.*Saved to:.*Spooler.*\\.dcm",
+            "weight": 0.9,
+            "note": "Image committed to DICOM spooler \u2014 strongest available exam completion signal on LOGIQ e"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "Exam completed; Sono Study Instance UID",
+            "weight": 1.0,
+            "note": "ePHI stream: processEndExamComplete \u2014 system confirmation that the study was committed/closed, same Study UID as exam_started"
+          },
+          {
+            "regex": "\\bRSIEVENT_REGISTERED_PATIENT_ENDED\\b",
+            "weight": 0.6,
+            "note": "Corroborating: patient registration ended on the RSI event bus \u2014 found in a second larger batch of real logs (180 occurrences)"
+          }
+        ]
+      }
+    }
+  },
+  "exam_save_failed": {
+    "category": "exam_lifecycle",
+    "description": "Exam save failed - study not committed to local archive",
+    "tags": [
+      "exam",
+      "error",
+      "gap_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EPM_CMD_SavePatient.*Save failed",
+            "weight": 1.0,
+            "note": "Explicit save failure - exam data may be lost"
+          },
+          {
+            "regex": "EPM_Srv_DatabaseServices.*Update database failed.*StudyInstanceUID.*not be unique",
+            "weight": 0.9,
+            "note": "Duplicate StudyInstanceUID - likely a reconnect/retry collision"
+          }
+        ]
+      }
+    }
+  },
+  "scan_started": {
+    "category": "scan_activity",
+    "description": "Transducer actively began live imaging",
+    "tags": [
+      "scan",
+      "ghost_signal",
+      "core"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "scanctrl:ScanControl::startScan: Scan Started",
+            "weight": 1.0,
+            "note": "Hardware-level scan start - most reliable scan event"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.image\\] - StartScan  start!",
+            "weight": 1.0,
+            "note": "Hardware-level scan start \u2014 transducer actively transmitting"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "Optimize\\.Startup.*EchoScanner startup optimized",
+            "weight": 1.0,
+            "note": "Scanner hardware initialized and ready \u2014 fires once per boot/restart of imaging"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIEVENT_IMAGING_STARTED\\b",
+            "weight": 1.0,
+            "note": "Live imaging began \u2014 direct analog to GE's startScan/Mindray's StartScan"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "UImgController::StartScan!",
+            "weight": 1.0,
+            "note": "Live imaging started \u2014 also fires on unfreeze/resume-live on this firmware (M6 doesn't log freeze/unfreeze as distinct events from scan start/stop), validated against real M6 data: rapid StartScan/StopScan pairs (as fast as ~50ms apart) confirm deliberate user toggling, not idle timeout"
+          }
+        ]
+      }
+    }
+  },
+  "freeze_pressed": {
+    "category": "scan_activity",
+    "description": "User manually froze the image (live -> frozen). Also carries probe and application context.",
+    "tags": [
+      "scan",
+      "ghost_signal",
+      "core",
+      "strong_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "ESStatus.*SetState RunState\\(\"Live\" -> \"Freeze\"\\).*Probe\\(\"[^\"]+\"\\).*Appl\\(\"[^\"]+\"\\)",
+            "weight": 1.0,
+            "note": "State transition Live->Freeze with probe+application context embedded"
+          }
+        ],
+        "exclude_patterns": [
+          ".*[Aa]uto[Ff]reeze.*",
+          ".*AutoFreezeCtrl.*"
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.image\\] - FrontEnd Freeze start!",
+            "weight": 1.0,
+            "note": "User-initiated freeze \u2014 hardware freeze command issued"
+          },
+          {
+            "regex": "\\[doppler\\.operation\\.replay\\] - SYNC_\\d+,FREEZE,",
+            "weight": 0.9,
+            "note": "Replay log freeze event \u2014 includes exam/probe context fields"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EScan\\.View.*ESStatus.*SetState RunState\\(\"Live\" -> \"Freeze\"\\).*Probe\\(\"[^\"]+\"\\).*Appl\\(\"[^\"]+\"\\)",
+            "weight": 1.0,
+            "note": "Live->Freeze state transition with probe and application context \u2014 same ESStatus format as Venue Go"
+          }
+        ],
+        "exclude_patterns": [
+          "EScan\\.Main.*Autofreeze"
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bSYSEVENT_IMG_IMAGING_FREEZE\\b",
+            "weight": 1.0,
+            "note": "Explicit freeze signal, found in a second larger batch of real logs (602 occurrences) \u2014 replaces the earlier tentative RSIEVENT_STOP_CAPTURE-based guess, which is demoted to corroborating-only below"
+          },
+          {
+            "regex": "\\bRSIEVENT_STOP_CAPTURE\\b",
+            "weight": 0.3,
+            "note": "Demoted from the earlier tentative primary mapping now that SYSEVENT_IMG_IMAGING_FREEZE is confirmed as the definitive signal; kept only as a weak corroborating signal"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "UImgController::StopScan!",
+            "weight": 1.0,
+            "note": "Live imaging stopped/frozen \u2014 pairs with scan_started's StartScan. Note: 'Enter/Exit Freeze Power-Save Mode' lines are a secondary power-state echo of this same action on M6, not an independent signal, so they're intentionally left unmapped to avoid double-counting"
+          }
+        ]
+      }
+    }
+  },
+  "unfreeze_pressed": {
+    "category": "scan_activity",
+    "description": "User resumed live scanning (frozen -> live)",
+    "tags": [
+      "scan",
+      "ghost_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "ESStatus.*SetState RunState\\(\"Freeze\" -> \"Live\"\\).*Probe\\(\"[^\"]+\"\\).*Appl\\(\"[^\"]+\"\\)",
+            "weight": 1.0,
+            "note": "State transition Freeze->Live with probe+application context"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.operation\\.replay\\] - SYNC_\\d+,UNFREEZE,",
+            "weight": 1.0,
+            "note": "Replay log unfreeze \u2014 user resumed live imaging"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EScan\\.View.*ESStatus.*SetState RunState\\(\"Freeze\" -> \"Live\"\\).*Probe\\(\"[^\"]+\"\\).*Appl\\(\"[^\"]+\"\\)",
+            "weight": 1.0,
+            "note": "Freeze->Live state transition \u2014 user resumed live imaging"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bSYSEVENT_IMG_IMAGING_UNFREEZE\\b",
+            "weight": 1.0,
+            "note": "User resumed live imaging from frozen state \u2014 found alongside IMAGING_FREEZE in a second larger batch of real logs, notably lower volume (52) than FREEZE (602), meaning not every freeze is followed by a captured unfreeze in these samples"
+          }
+        ]
+      }
+    }
+  },
+  "autofreeze": {
+    "category": "system_behavior",
+    "description": "System automatically froze due to inactivity - not a user scan event",
+    "tags": [
+      "system",
+      "ignore_for_ghost"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "OpPanel.*Autofreeze trigged",
+            "weight": 0.3,
+            "note": "Inactivity autofreeze - signals idle machine, not scanning"
+          },
+          {
+            "regex": "VirtualControl: control=AutoFreezeCtrl",
+            "weight": 0.3,
+            "note": "Autofreeze control event"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EScan\\.Main.*Autofreeze",
+            "weight": 0.3,
+            "note": "Inactivity autofreeze \u2014 not a user scan event"
+          }
+        ]
+      }
+    }
+  },
+  "image_saved": {
+    "category": "data_persistence",
+    "description": "User pressed the image store/save button",
+    "tags": [
+      "persistence",
+      "core",
+      "strong_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "VirtualControl: control=ImageStoreCtrlAsync",
+            "weight": 1.0,
+            "note": "User triggered async image store - primary save signal"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.file\\.save\\] - USysFileHandler save image\\(",
+            "weight": 1.0,
+            "note": "Image/cine save initiated \u2014 path encodes patient folder, exam type, and sequence"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "ScExchange CDcmFile::Write.*Writing file.*ImageBuffer.*\\.dcm",
+            "weight": 1.0,
+            "note": "Image written to local ImageBuffer \u2014 user pressed store/print button"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIACTION_IMAGE_CAPTURE\\b",
+            "weight": 1.0,
+            "note": "User pressed the image/clip capture button \u2014 primary save signal"
+          },
+          {
+            "regex": "\\bRSIACTION_CLIP_CAPTURE\\b",
+            "weight": 1.0,
+            "note": "User pressed the clip/cine capture button \u2014 companion action to IMAGE_CAPTURE for cine loops specifically, found in a second larger batch of real logs (40 occurrences)"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.file\\.save\\] - USysFileHandler save image\\(",
+            "weight": 1.0,
+            "note": "Identical channel/message to standard Mindray \u2014 the save subsystem didn't change on M6, only the exam-lifecycle/scan channel did"
+          }
+        ]
+      }
+    }
+  },
+  "image_archived_local": {
+    "category": "data_persistence",
+    "description": "Image file successfully written to local device archive",
+    "tags": [
+      "persistence",
+      "local_archive"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EPM_Srv_DicomStorage.*Added image.*\\.dcm to service",
+            "weight": 1.0,
+            "note": "DCM file committed to local archive - confirms local storage"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.file\\.save\\] - USysFileHandler::FinishSaveSysFile,",
+            "weight": 1.0,
+            "note": "Save completed \u2014 file successfully written to local storage"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EchoPatientRad.*Saved to:.*\\.dcm",
+            "weight": 1.0,
+            "note": "Image successfully saved to disk (ImageBuffer or Spooler)"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIEVENT_ALL_IMAGE_SAVE_COMPLETE\\b",
+            "weight": 1.0,
+            "note": "Save confirmed complete \u2014 confirms local storage write finished"
+          },
+          {
+            "regex": "\\bRSIEVENT_CLIP_SAVE_NOMINAL\\b",
+            "weight": 0.8,
+            "note": "Clip save reported nominal status \u2014 supporting signal for cine/clip saves specifically"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.file\\.save\\] - USysFileHandler::FinishSaveSysFile,",
+            "weight": 1.0,
+            "note": "Identical to standard Mindray \u2014 save completed to local storage"
+          },
+          {
+            "regex": "UUltraImgSaveResultDefine::SUCCESS",
+            "weight": 0.9,
+            "note": "Explicit save-success confirmation, one step after FinishSaveSysFile in the observed sequence"
+          }
+        ]
+      }
+    }
+  },
+  "dicom_spooled_for_send": {
+    "category": "data_persistence",
+    "description": "Image converted and staged in DICOM spooler for outbound send",
+    "tags": [
+      "persistence",
+      "dicom",
+      "pacs"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EchoImageHandler.*ImageSaveAs.*FileFormat=Dicom.*Spooler",
+            "weight": 0.9,
+            "note": "Image converted to DICOM and placed in spooler queue for PACS send"
+          }
+        ]
+      }
+    }
+  },
+  "worklist_queried": {
+    "category": "workflow",
+    "description": "Device queried the DICOM Modality Worklist (MWL) for patient orders",
+    "tags": [
+      "workflow",
+      "documentation_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "_Dicom_WorkList.*Opening Association SUCCESS",
+            "weight": 1.0,
+            "note": "MWL association opened - device is pulling scheduled exams"
+          },
+          {
+            "regex": "_Dicom_WorkList.*WORKLIST FIND responses: \\d+",
+            "weight": 0.9,
+            "note": "MWL returned results - count of scheduled procedures available"
+          }
+        ]
+      }
+    }
+  },
+  "probe_connected": {
+    "category": "probe_usage",
+    "description": "Probe physically connected or detected on a connector",
+    "tags": [
+      "probe",
+      "ghost_signal",
+      "core"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "CHkTransLayerEvtHandler.*Probe connection event.*name .+ \\(ID \\d+\\)",
+            "weight": 1.0,
+            "note": "Probe physically detected on connector with name and ID"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.metrics\\.xdcr\\] - XDCR: .+,\\(.+\\),\\s*\\d+",
+            "weight": 1.0,
+            "note": "Transducer usage metric: probe name, serial number, and scan frame count"
+          }
+        ]
+      }
+    }
+  },
+  "application_context": {
+    "category": "workflow",
+    "description": "Imaging application/preset active (e.g. Cardiac, Abdo, Vein_VA). Extracted from ESStatus lines alongside freeze events.",
+    "tags": [
+      "workflow",
+      "exam_type",
+      "contextual"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "ESStatus.*SetActive.*Probe\\(\"[^\"]+\"\\).*Appl\\(\"[^<][^\"]+\"\\)",
+            "weight": 0.7,
+            "note": "Application became active - use to tag scan sessions with exam type"
+          }
+        ],
+        "exclude_patterns": [
+          ".*Appl\\(\"<none>\"\\)"
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.HandleExamModeChanged\\] - Current:Probe\\[.+\\]ExamMode\\[.+\\]",
+            "weight": 0.8,
+            "note": "Active probe and exam mode together \u2014 fires on preset/mode change"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bSYSEVENT_IMG_SET_EXAM_TYPE_BY_NAME\\b",
+            "weight": 0.6,
+            "note": "Preset/exam-type selected \u2014 only 54% co-occurrence with an active imaging interval (often selected during setup, before live imaging), so treated as workflow context rather than proof of active scanning"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "Event:GUI Dialog Showup\\]\\s*\\{\\{Probe and Exam Mode\\}\\}",
+            "weight": 0.6,
+            "note": "User opened the probe/exam-mode selection screen \u2014 workflow context, not proof of active scanning on its own"
+          },
+          {
+            "regex": "Event:GUI List Selected\\]\\s*\\{\\{EM [^}]+\\}\\}",
+            "weight": 0.6,
+            "note": "Exam-type preset selected from list (presets prefixed 'EM' \u2014 appear to be Emergency Medicine presets: EM SOFT TISSUE, EM IV ACCESS, EM FAST, EM RENAL etc.)"
+          }
+        ]
+      }
+    }
+  },
+  "image_adjustment": {
+    "category": "scan_activity",
+    "description": "User adjusted an imaging acquisition parameter",
+    "tags": [
+      "scan",
+      "ghost_signal"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "Profiling.*,Param change,.*Probe:,.+,Application:,.+,Param:,.+",
+            "weight": 0.7,
+            "note": "Named parameter change with probe and application context"
+          }
+        ],
+        "exclude_patterns": [
+          ".*AcqParam change.*first frame.*"
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.application\\.meas\\.menu\\] - Enter Meas By Menu",
+            "weight": 0.8,
+            "note": "User opened measurement menu \u2014 indicates active clinical use"
+          },
+          {
+            "regex": "\\[doppler\\.application\\.meas\\.report\\.dlg\\] - Enter Report Dlg",
+            "weight": 0.9,
+            "note": "User opened report/worksheet dialog \u2014 strong documentation signal"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bSYSEVENT_IMG_(SET|TOGGLE|RESET)_[A-Z0-9_]+\\b",
+            "weight": 0.9,
+            "note": "Broadened from an initial 3-pattern set (gain/depth/cine) after a second, larger batch of real logs surfaced 47 total SET/TOGGLE/RESET parameter-change variants (color gain, Doppler PRF, zoom, sector steering, needle guide, mode toggles, etc.). The original 3 were validated at 99.9-100% co-occurrence with active imaging; this broader pattern follows the same semantic (user actively changing an image parameter) so is trusted at a slightly lower weight pending the same clustering test on the new variants. application_context's SET_EXAM_TYPE_BY_NAME pattern is listed earlier in this file and claims that specific line first, so it won't double-fire here."
+          }
+        ]
+      }
+    }
+  },
+  "system_boot": {
+    "category": "system_lifecycle",
+    "description": "System finished booting and is ready for use",
+    "tags": [
+      "system",
+      "session_boundary"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EchoConfig.*Start -> SystemReadyEid",
+            "weight": 1.0,
+            "note": "System fully initialized - use as session start boundary"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.state\\.power\\] - -{3,}Doppler Start-{3,}",
+            "weight": 1.0,
+            "note": "Application started \u2014 session boundary"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EchoConfig.*Start -> SystemReadyEid",
+            "weight": 1.0,
+            "note": "System fully initialized \u2014 session boundary"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIEVENT_SYSTEM_READY\\b",
+            "weight": 1.0,
+            "note": "System fully initialized and ready \u2014 session start boundary"
+          }
+        ]
+      }
+    }
+  },
+  "system_shutdown": {
+    "category": "system_lifecycle",
+    "description": "System is shutting down. Mode indicates reason (e.g. shutdownlowbattery).",
+    "tags": [
+      "system",
+      "session_boundary"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": "EchoRoot.*Stopping system, mode=",
+            "weight": 1.0,
+            "note": "System shutdown with reason code - shutdownlowbattery is common POCUS pattern"
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.state\\.power\\] - Begin Shutdown",
+            "weight": 1.0,
+            "note": "Graceful shutdown initiated \u2014 session boundary"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "EchoRootPck.*SystemExit modeStr shutdown",
+            "weight": 1.0,
+            "note": "Graceful shutdown or battery shutdown initiated"
+          },
+          {
+            "regex": "EchoSysmon:BatteryPower.*Battery Event.*beginning shutdown",
+            "weight": 0.9,
+            "note": "Battery-triggered shutdown \u2014 device ran out of power"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIACTION_SUBSYSTEM_SHUTDOWN\\b",
+            "weight": 1.0,
+            "note": "Graceful shutdown initiated \u2014 session boundary"
+          }
+        ]
+      }
+    }
+  },
+  "ignore": {
+    "category": "noise",
+    "description": "High-frequency system polling noise with no clinical value",
+    "tags": [
+      "noise"
+    ],
+    "vendors": {
+      "GE": {
+        "patterns": [
+          {
+            "regex": ".*WifiSignalQuality.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*Batteries Health.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*PCBE\\.SystemMemory.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*PCBE\\.ProcessMemory.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*PCBE\\.UserResources.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*ScUdt.*ReportObjectUsage.*",
+            "weight": 0.0
+          },
+          {
+            "regex": ".*HyperLog.*Extensive Logging.*",
+            "weight": 0.0
+          }
+        ]
+      },
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.operation\\.replay\\] - Peek UI",
+            "weight": 0.0,
+            "note": "Raw touch gesture coordinates \u2014 high volume, no clinical value"
+          },
+          {
+            "regex": "\\[doppler\\.image\\] - FrontEnd Write RegMems",
+            "weight": 0.0,
+            "note": "Hardware register writes \u2014 internal imaging parameter noise"
+          },
+          {
+            "regex": "\\[doppler\\.image\\] - Frontend Param update",
+            "weight": 0.0,
+            "note": "Imaging parameter update chatter"
+          },
+          {
+            "regex": "\\[doppler\\.status\\.MsgTime\\]",
+            "weight": 0.0,
+            "note": "Message timing telemetry \u2014 no clinical value"
+          },
+          {
+            "regex": "\\[doppler\\.perf\\]",
+            "weight": 0.0,
+            "note": "Performance profiling \u2014 no clinical value"
+          },
+          {
+            "regex": "\\[doppler\\.uef\\.base\\] - Thread",
+            "weight": 0.0,
+            "note": "Thread start/exit lifecycle \u2014 no clinical value"
+          },
+          {
+            "regex": "\\[doppler\\.database\\] - sqlite_log",
+            "weight": 0.0,
+            "note": "SQLite internal log chatter"
+          }
+        ]
+      },
+      "GE_Logiq": {
+        "patterns": [
+          {
+            "regex": "PCBE\\.SystemMemory",
+            "weight": 0.0
+          },
+          {
+            "regex": "PCBE\\.ProcessMemory",
+            "weight": 0.0
+          },
+          {
+            "regex": "PCBE\\.UserResources",
+            "weight": 0.0
+          },
+          {
+            "regex": "PCBE\\.PerfInfo",
+            "weight": 0.0
+          },
+          {
+            "regex": "ScDicom.*Merge Mem Report",
+            "weight": 0.0
+          },
+          {
+            "regex": "PatioUsb.*OpenDriver Failed",
+            "weight": 0.0
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "\\bRSIEVENT_BATTERY_STATUS\\b",
+            "weight": 0.0,
+            "note": "Battery telemetry \u2014 by far the highest-volume event in Sonosite exports (~37% of rows in sample), no clinical value"
+          },
+          {
+            "regex": "\\bRSIEVENT_VOICE_STATE_CHANGE\\b",
+            "weight": 0.0,
+            "note": "Voice-assist feature state chatter"
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_TOUCH_ACTIVITY\\b",
+            "weight": 0.0,
+            "note": "Raw touch coordinates \u2014 high volume, no clinical value"
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_TACTILE_ACTIVITY\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_PT_LIST_UPDATE\\b",
+            "weight": 0.0,
+            "note": "Patient list UI refresh chatter, not a clinical event itself"
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_SUBSYSTEM_LOADED\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_DIALOG_ACTIVATED\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_DIALOG_DEACTIVATED\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_WAIT_SCREEN_SHOWING\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_TOAST_END\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_SHOW_TOAST_MESSAGE\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_VIRTUAL_KEYBOARD_VISIBILITY\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIACTION_UI_REQUEST_SUBSYSTEM\\b",
+            "weight": 0.0,
+            "note": "UI navigation chatter"
+          },
+          {
+            "regex": "\\bRSIACTION_UI_REQUEST_PENDING_SUBSYSTEM\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_SETUP_TARGET_WINDOWS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_CHECK_UPGRADE_STATUS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_SYSTEM_SLEEP_STATE_CHANGED\\b",
+            "weight": 0.0,
+            "note": "Power-state polling, not user-driven"
+          },
+          {
+            "regex": "\\bRSIEVENT_USB_STATUS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_USB_CONNECTION\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_DEVICE_LIST_CHANGE\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_STORAGE_DEVICE_UPDATE\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_DICOM_BE_READY\\b",
+            "weight": 0.0,
+            "note": "DICOM backend component-ready \u2014 subsumed by system_boot's SYSTEM_READY"
+          },
+          {
+            "regex": "\\bRSIEVENT_PT_DB_READY\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_PATMGMNT_INIT_COMPLETE\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_AUDIO_STATUS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_PRINT_STATUS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_TRANSFER_STATUS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_SEND_SCREEN_OFFSETS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_REQUEST_SCREEN_OFFSETS\\b",
+            "weight": 0.0
+          },
+          {
+            "regex": "\\bRSIEVENT_UI_ANNOTATION_LEAVE\\b",
+            "weight": 0.0
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.operation\\.replay\\]",
+            "weight": 0.0,
+            "note": "Raw touch/gesture replay telemetry \u2014 99.8% of this vendor's log volume in samples seen so far, no clinical value"
+          },
+          {
+            "regex": "Event:Peek UI",
+            "weight": 0.0,
+            "note": "Touch activity chatter outside the replay channel too"
+          },
+          {
+            "regex": "PSC:Enter Idle|PSC:Exit Idle|PSC:Enter ScreenSaver|PSC:Exit ScreenSaver|screen saver state",
+            "weight": 0.0,
+            "note": "Power/screensaver state chatter"
+          },
+          {
+            "regex": "Enter .+ Power-Save Mode|Exit .+ Power-Save Mode",
+            "weight": 0.0,
+            "note": "Power-state echoes \u2014 the freeze/unfreeze action itself is captured by StartScan/StopScan, this is a secondary state indicator only"
+          },
+          {
+            "regex": "ECG  modual open failure",
+            "weight": 0.0,
+            "note": "Recurring hardware-module-absent error, not user-driven (note: vendor's own typo 'modual' preserved literally)"
+          },
+          {
+            "regex": "IsComponentAvailable component_id",
+            "weight": 0.0
+          },
+          {
+            "regex": "The funcid\\(\\d+\\) setting state is not exist",
+            "weight": 0.0,
+            "note": "Internal UI state-machine noise, different wording than standard Mindray's uef.base Thread noise but same category of chatter"
+          },
+          {
+            "regex": "\\[doppler\\.state\\] - log pack|\\[doppler\\.state\\] - Update Metrics",
+            "weight": 0.0
+          },
+          {
+            "regex": "Probe::GetStatus==>|Probe:: probe int_state|Probe:: keyprobe flag",
+            "weight": 0.0,
+            "note": "Probe inventory self-check \u2014 validated as firing on wake/boot (34 occurrences, consistently aligned with activity-burst starts), not a discrete per-scan probe-selection action"
+          }
+        ]
+      }
+    }
+  },
+  "user_login": {
+    "category": "system_lifecycle",
+    "description": "User logged into the device \u2014 session boundary and authentication event",
+    "tags": [
+      "system",
+      "session_boundary",
+      "user_activity"
+    ],
+    "vendors": {
+      "Mindray": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.metrics\\.USR\\] - LOGIN:",
+            "weight": 0.9,
+            "note": "User login recorded in metrics \u2014 identifies operator and marks session start"
+          }
+        ]
+      }
+    }
+  }
+}

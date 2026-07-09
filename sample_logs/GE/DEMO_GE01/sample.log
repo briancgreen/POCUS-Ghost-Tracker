@@ -1,0 +1,16 @@
+Monday,Jul 06 08:00:01.000,2026;INFO;PCBE.SystemMemory;PCBE.SystemMemory report: free=512MB
+Monday,Jul 06 08:00:02.000,2026;INFO;EchoConfig;EchoConfig Start -> SystemReadyEid
+Monday,Jul 06 08:00:05.000,2026;INFO;SimplePatientManager;SimplePatientManager Finished CreateNewPatient
+Monday,Jul 06 08:00:10.000,2026;INFO;scanctrl;scanctrl:ScanControl::startScan: Scan Started
+Monday,Jul 06 08:00:20.000,2026;INFO;escan;ESStatus(0,Live): SetState RunState("Live" -> "Freeze") Probe("C1-6-D") Appl("Abdomen")
+Monday,Jul 06 08:00:25.000,2026;INFO;VirtualControl;VirtualControl: control=ImageStoreCtrlAsync
+Monday,Jul 06 08:00:30.000,2026;INFO;escan;ESStatus(0,Live): SetState RunState("Freeze" -> "Live") Probe("C1-6-D") Appl("Abdomen")
+Monday,Jul 06 08:00:40.000,2026;INFO;VirtualControl;VirtualControl: control=PatientEndExamCtrl
+Monday,Jul 06 08:00:45.000,2026;INFO;EPM_CMD_EndPatient;EPM_CMD_EndPatient: Study with UID 1.2.840.DEMO.0001 has been closed
+Monday,Jul 06 12:00:00.000,2026;INFO;WifiSignalQuality;WifiSignalQuality -62dBm
+Monday,Jul 06 14:12:00.000,2026;INFO;scanctrl;scanctrl:ScanControl::startScan: Scan Started
+Monday,Jul 06 14:12:08.000,2026;INFO;escan;ESStatus(0,Live): SetState RunState("Live" -> "Freeze") Probe("C1-6-D") Appl("Nerve_Interscalene")
+Monday,Jul 06 14:12:30.000,2026;INFO;escan;ESStatus(0,Live): SetState RunState("Freeze" -> "Live") Probe("C1-6-D") Appl("Nerve_Interscalene")
+Monday,Jul 06 14:12:45.000,2026;INFO;Profiling;Profiling,Param change,Probe:,C1-6-D,Application:,Nerve_Interscalene,Param:,Gain
+Monday,Jul 06 14:13:00.000,2026;INFO;scanctrl;scanctrl:ScanControl::startScan: Scan Started
+Monday,Jul 06 18:00:00.000,2026;INFO;PCBE.ProcessMemory;PCBE.ProcessMemory report: used=210MB

@@ -1,0 +1,6 @@
+# No external dependencies.
+#
+# parser.py and sessionizer.py use only the Python standard library
+# (re, json, os, io, csv-safe line scanning, collections, datetime).
+#
+# Requires Python 3.8 or later.

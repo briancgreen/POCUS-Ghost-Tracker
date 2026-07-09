@@ -1,0 +1,14 @@
+2026/07/06 09:00:00.000 INFO EchoConfig EchoConfig Start -> SystemReadyEid
+2026/07/06 09:00:01.000 INFO PCBE.SystemMemory PCBE.SystemMemory free=480MB
+2026/07/06 09:00:02.000 INFO UserEventLog UserEventLog Activating package: Patient.EMNewPatient
+2026/07/06 09:00:05.000 INFO Optimize.Startup Optimize.Startup EchoScanner startup optimized
+2026/07/06 09:00:15.000 INFO EScan.View EScan.View ESStatus SetState RunState("Live" -> "Freeze") Probe("C1-5") Appl("Abdomen")
+2026/07/06 09:00:20.000 INFO ScExchange ScExchange CDcmFile::Write Writing file ImageBuffer/0001.dcm
+2026/07/06 09:00:25.000 INFO EScan.View EScan.View ESStatus SetState RunState("Freeze" -> "Live") Probe("C1-5") Appl("Abdomen")
+2026/07/06 09:00:30.000 INFO UserEventLog UserEventLog Deactivating package: Patient.EMNewPatient
+2026/07/06 09:00:35.000 INFO EchoPatientRad EchoPatientRad Saved to: Spooler/0001.dcm
+2026/07/06 12:00:00.000 INFO PCBE.ProcessMemory PCBE.ProcessMemory used=190MB
+2026/07/06 15:00:00.000 INFO Optimize.Startup Optimize.Startup EchoScanner startup optimized
+2026/07/06 15:00:10.000 INFO EScan.View EScan.View ESStatus SetState RunState("Live" -> "Freeze") Probe("C1-5") Appl("FAST")
+2026/07/06 15:00:40.000 INFO EScan.View EScan.View ESStatus SetState RunState("Freeze" -> "Live") Probe("C1-5") Appl("FAST")
+2026/07/06 18:00:00.000 INFO EchoRootPck EchoRootPck SystemExit modeStr shutdown

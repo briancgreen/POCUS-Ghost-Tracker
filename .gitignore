@@ -1,0 +1,20 @@
+# Real device logs almost certainly contain PHI - never commit them.
+# Point LOG_ROOT at a local, untracked directory (default: ./logs).
+/logs/
+!/sample_logs/
+
+# Generated output - regenerate by re-running the pipeline, don't commit.
+/output/
+/output_sessions/
+device_summary.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS/editor cruft
+.DS_Store
+.vscode/
+.idea/
