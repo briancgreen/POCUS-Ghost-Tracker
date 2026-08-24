@@ -13,29 +13,29 @@ CONTEXT_WINDOW = 10  # lines to keep before current for context enrichment
 # Timestamp parsing
 # ---------------------------------------------------------------------------
 #
-# Formats themselves live in rules.json under "_timestamp_formats" (one regex +
-# strptime string per vendor) and are precompiled once in load_rules(), same
-# as the event-detection patterns. Adding a new vendor's timestamp format is
-# a rules.json edit only - no changes needed here.
+# Formats themselves live in rules.json under "_timestamp_formats" (a LIST of
+# regex + strptime pairs per vendor, since one vendor can produce more than
+# one log format/file type - e.g. Sonosite's CSV export vs. its native
+# system.log) and are precompiled once in load_rules(), same as the
+# event-detection patterns. Adding a new format is a rules.json edit only -
+# no changes needed here.
 
 def extract_timestamp(line, vendor, timestamp_formats):
     """
-    Parse a timestamp for the given vendor's log line using the precompiled
-    (regex, strptime_format) pair from rules.json. Returns ISO 8601 string,
-    or None if the vendor has no configured format or the line doesn't match.
+    Parse a timestamp for the given vendor's log line by trying each
+    precompiled (regex, strptime_format) pair for that vendor in order,
+    stopping at the first that matches. Returns ISO 8601 string, or None if
+    the vendor has no configured format or no format matches the line.
     """
-    fmt = timestamp_formats.get(vendor)
-    if not fmt:
-        return None
-
-    m = fmt["compiled_re"].search(line)
-    if not m:
-        return None
-
-    try:
-        return datetime.strptime(m.group(1), fmt["strptime"]).isoformat()
-    except ValueError:
-        return None
+    for fmt in timestamp_formats.get(vendor, []):
+        m = fmt["compiled_re"].search(line)
+        if not m:
+            continue
+        try:
+            return datetime.strptime(m.group(1), fmt["strptime"]).isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -145,15 +145,15 @@ def load_rules(file_path):
                     (event_name, p["weight"], re.compile(p["regex"]), excl_compiled)
                 )
 
-    # --- Precompile timestamp formats (one regex + strptime string per vendor) ---
+    # --- Precompile timestamp formats (a list of regex + strptime pairs per vendor) ---
     timestamp_formats = {}
-    for vendor, fmt in rules.get("_timestamp_formats", {}).items():
+    for vendor, fmt_list in rules.get("_timestamp_formats", {}).items():
         if vendor.startswith("_"):
             continue
-        timestamp_formats[vendor] = {
-            "compiled_re": re.compile(fmt["regex"]),
-            "strptime":    fmt["strptime"],
-        }
+        timestamp_formats[vendor] = [
+            {"compiled_re": re.compile(fmt["regex"]), "strptime": fmt["strptime"]}
+            for fmt in fmt_list
+        ]
 
     rules["_vendor_aliases"]      = vendor_aliases
     rules["_compiled"]            = compiled_by_vendor
@@ -211,13 +211,13 @@ def dedupe_events(events):
 # Output
 # ---------------------------------------------------------------------------
 
-def save_output(device_id, vendor, events):
-    output_dir = os.path.join("output", vendor)
+def save_output(device_id, vendor, events, output_root="output"):
+    output_dir = os.path.join(output_root, vendor)
     os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, f"{device_id}_events.json")
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(events, f, indent=2)
-    print(f"\nSaved output: {file_path}")
+    return file_path
 
 
 # ---------------------------------------------------------------------------
@@ -260,26 +260,34 @@ def read_log_file(file_path):
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main entry point — callable directly (GUI, scripts) or via CLI
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
-    rules = load_rules("rules.json")
+def run_parser(log_root=LOG_ROOT, output_root="output", rules_path="rules.json", progress=print):
+    """
+    Run the full parse pass: scan log_root for vendor/device folders, match
+    every line against the rules for that vendor, and write one normalized
+    events JSON file per device under output_root.
 
-    print("Scanning for log files...\n")
+    progress: callable taking a single string, used for status messages.
+    Defaults to print() for CLI use; a GUI can pass a function that appends
+    to a text widget instead.
+
+    Returns a list of (device_id, vendor, output_file_path) for what was written.
+    """
+    rules = load_rules(rules_path)
+
+    progress("Scanning for log files...\n")
 
     device_event_map = {}
 
-    for file_info in get_all_log_files(LOG_ROOT):
+    for file_info in get_all_log_files(log_root):
         vendor    = resolve_vendor(rules, file_info["vendor"])
         device_id = file_info["device_id"]
         key       = f"{vendor}_{device_id}"
 
         # Get the pre-compiled rule set for this vendor (empty bucket if unknown)
-        compiled_vendor = rules["_compiled"].get(
-            vendor,
-            {"ignore_re": None, "rules": []}
-        )
+        compiled_vendor = rules["_compiled"].get(vendor, {"rules": []})
 
         if key not in device_event_map:
             device_event_map[key] = {
@@ -288,7 +296,7 @@ if __name__ == "__main__":
                 "events":    [],
             }
 
-        print(f"  Processing: {vendor} | {device_id} | {file_info['file_name']}")
+        progress(f"  Processing: {vendor} | {device_id} | {file_info['file_name']}")
 
         # Rolling buffer of recent lines for context enrichment
         recent_lines = deque(maxlen=CONTEXT_WINDOW)
@@ -319,13 +327,25 @@ if __name__ == "__main__":
             recent_lines.append(line)
 
     # Deduplicate, sort, and save
+    written = []
     for key, data in device_event_map.items():
-        print(f"\nDeduplicating events for {data['device_id']}...")
+        progress(f"\nDeduplicating events for {data['device_id']}...")
 
         events = dedupe_events(data["events"])
         removed = len(data["events"]) - len(events)
-        print(f"  Removed {removed} duplicates")
+        progress(f"  Removed {removed} duplicates")
 
         events.sort(key=lambda x: x["timestamp"] or "")
 
-        save_output(data["device_id"], data["vendor"], events)
+        output_dir = os.path.join(output_root, data["vendor"])
+        os.makedirs(output_dir, exist_ok=True)
+        file_path = save_output(data["device_id"], data["vendor"], events, output_root)
+        progress(f"\nSaved output: {file_path}")
+
+        written.append((data["device_id"], data["vendor"], file_path))
+
+    return written
+
+
+if __name__ == "__main__":
+    run_parser()
