@@ -1,32 +1,47 @@
 {
   "_comment": "Pattern rules for POCUS utilization log analysis. Each event has per-vendor patterns and optional exclude_patterns. Weights: 1.0=definitive, 0.7-0.9=strong, 0.3-0.6=supporting/contextual.",
   "_timestamp_formats": {
-    "_comment": "One entry per vendor. 'regex' must have exactly one capture group covering the full timestamp text (including any separators like ',' before milliseconds). 'strptime' parses that captured text directly - literal separator characters (comma, slash, period) go straight into the format string, no need to normalize them in code.",
-    "Mindray": {
-      "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
-      "strptime": "%Y-%m-%d %H:%M:%S,%f",
-      "note": "Mindray TEX: '[YYYY-MM-DD HH:MM:SS,mmm]'"
-    },
-    "Mindray_M6": {
-      "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
-      "strptime": "%Y-%m-%d %H:%M:%S,%f",
-      "note": "Identical bracket format to standard Mindray - kept as a separate entry in case M6 firmware diverges in a future sample"
-    },
-    "GE": {
-      "regex": "(\\w+,\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+\\.\\d+,\\d{4})",
-      "strptime": "%A,%b %d %H:%M:%S.%f,%Y",
-      "note": "GE Venue Go: 'Weekday,Mon DD HH:MM:SS.mmm,YYYY' - timestamp is not at the start of the line, so no leading ^ anchor"
-    },
-    "GE_Logiq": {
-      "regex": "^(\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})",
-      "strptime": "%Y/%m/%d %H:%M:%S.%f",
-      "note": "GE LOGIQ e: 'YYYY/MM/DD HH:MM:SS.mmm'"
-    },
-    "Sonosite": {
-      "regex": "^\\w+,(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{4})",
-      "strptime": "%Y-%m-%d %H:%M:%S.%f",
-      "note": "Sonosite CSV: 'LogType,YYYY-MM-DD HH:MM:SS.ffff,...' - 4-digit fractional seconds, strptime's %f left-justifies into microseconds so this parses correctly without modification"
-    }
+    "_comment": "One entry per vendor. 'regex' must have exactly one capture group covering the full timestamp text (including any separators like ',' before milliseconds). 'strptime' parses that captured text directly - literal separator characters (comma, slash, period) go straight into the format string, no need to normalize them in code. Each vendor maps to a LIST of format entries (not a single entry) - files from the same vendor can use different timestamp formats (e.g. Sonosite's CSV export vs. its native system.log), and each is tried in order until one matches a given line.",
+    "Mindray": [
+      {
+        "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
+        "strptime": "%Y-%m-%d %H:%M:%S,%f",
+        "note": "Mindray TEX: '[YYYY-MM-DD HH:MM:SS,mmm]'"
+      }
+    ],
+    "Mindray_M6": [
+      {
+        "regex": "^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\]",
+        "strptime": "%Y-%m-%d %H:%M:%S,%f",
+        "note": "Identical bracket format to standard Mindray - kept as a separate entry in case M6 firmware diverges in a future sample"
+      }
+    ],
+    "GE": [
+      {
+        "regex": "(\\w+,\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+\\.\\d+,\\d{4})",
+        "strptime": "%A,%b %d %H:%M:%S.%f,%Y",
+        "note": "GE Venue Go: 'Weekday,Mon DD HH:MM:SS.mmm,YYYY' - timestamp is not at the start of the line, so no leading ^ anchor"
+      }
+    ],
+    "GE_Logiq": [
+      {
+        "regex": "^(\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})",
+        "strptime": "%Y/%m/%d %H:%M:%S.%f",
+        "note": "GE LOGIQ e: 'YYYY/MM/DD HH:MM:SS.mmm'"
+      }
+    ],
+    "Sonosite": [
+      {
+        "regex": "^\\w+,(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{4})",
+        "strptime": "%Y-%m-%d %H:%M:%S.%f",
+        "note": "Sonosite CSV: 'LogType,YYYY-MM-DD HH:MM:SS.ffff,...' - 4-digit fractional seconds, strptime's %f left-justifies into microseconds so this parses correctly without modification"
+      },
+      {
+        "regex": "(\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2})",
+        "strptime": "%m/%d/%Y %H:%M:%S",
+        "note": "Sonosite native system.log (C++ application trace log, distinct from the CSV export): 'MM/DD/YYYY HH:MM:SS - message'. No fractional seconds, but session-gap/window analysis operates in minutes, so second-level resolution is sufficient."
+      }
+    ]
   },
   "exam_started": {
     "category": "exam_lifecycle",
@@ -203,6 +218,11 @@
             "regex": "\\bRSIEVENT_REGISTERED_PATIENT_ENDED\\b",
             "weight": 0.6,
             "note": "Corroborating: patient registration ended on the RSI event bus \u2014 found in a second larger batch of real logs (180 occurrences)"
+          },
+          {
+            "regex": "Exam completed for Study Instance UID .+, patientLoid \\d+",
+            "weight": 1.0,
+            "note": "From Sonosite's native system.log (APtManager.cpp) - a separate, complementary log file from the CSV export, same physical devices. Definitive: real Study UID attached. 142 occurrences in the validating sample."
           }
         ]
       }
@@ -228,6 +248,20 @@
             "regex": "EPM_Srv_DatabaseServices.*Update database failed.*StudyInstanceUID.*not be unique",
             "weight": 0.9,
             "note": "Duplicate StudyInstanceUID - likely a reconnect/retry collision"
+          }
+        ]
+      },
+      "Sonosite": {
+        "patterns": [
+          {
+            "regex": "transfer failed to device: STORAGE",
+            "weight": 0.7,
+            "note": "From Sonosite's native system.log (TDicomManager.cpp) - archive/PACS send attempt failed. Genuine negative signal: proof a save was attempted, distinct from never attempting one at all."
+          },
+          {
+            "regex": "exception caught transferring image/clip",
+            "weight": 0.6,
+            "note": "From system.log (tDicomContextTransfer.cpp) - corroborating: fires alongside the STORAGE transfer failure above in the same error burst"
           }
         ]
       }
@@ -677,6 +711,16 @@
             "regex": "\\bSYSEVENT_IMG_SET_EXAM_TYPE_BY_NAME\\b",
             "weight": 0.6,
             "note": "Preset/exam-type selected \u2014 only 54% co-occurrence with an active imaging interval (often selected during setup, before live imaging), so treated as workflow context rather than proof of active scanning"
+          },
+          {
+            "regex": "Selected exam\\s+= '[^']+'",
+            "weight": 0.6,
+            "note": "From Sonosite's native system.log (uScanheadModel.cpp) - preset/exam-type selection, same tier as the CSV export's SET_EXAM_TYPE_BY_NAME above"
+          },
+          {
+            "regex": "aWklstDataValidator\\.cpp.*tag /root/",
+            "weight": 0.3,
+            "note": "From system.log - worklist-item validation warnings (missing/incomplete DICOM fields). Validated: these bursts consistently land 5-90 seconds before a 'Selected exam' event across many different days, so they're event-tied rather than periodic background noise - but the message content itself is a warning about incomplete data, not confirmation of successful worklist use, hence the low weight."
           }
         ]
       },
