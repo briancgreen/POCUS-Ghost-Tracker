@@ -58,6 +58,11 @@ _APPL_RE  = re.compile(r'Appl\("([^"<][^"]*)"\)')
 _MR_PROBE_RE    = re.compile(r'Current:Probe\[([^\]]+)\]')
 _MR_EXAMMODE_RE = re.compile(r'ExamMode\[([^\]]+)\]')
 
+# Mindray M6: exam preset picked from the Probe and Exam Mode list, or applied
+# by the system ("Slot:0, ID:0x23, ProbeName:..., exam mode:PED_ABD_EXAM")
+_M6_EXAMLIST_RE = re.compile(r'Event:GUI List Selected\]\s*\{\{([^}]+)\}\}')
+_M6_EXAMMODE_RE = re.compile(r'exam mode:(\w+)')
+
 
 def extract_context_fields(line, recent_lines):
     """
@@ -97,6 +102,13 @@ def extract_context_fields(line, recent_lines):
         extra["probe"] = mr_probe.group(1).strip()
     if mr_exam and "application" not in extra:
         extra["application"] = mr_exam.group(1).strip()
+
+    # --- Mindray M6: exam preset from list pick or system-applied exam mode ---
+    if "application" not in extra:
+        m6 = _M6_EXAMLIST_RE.search(line) or _M6_EXAMMODE_RE.search(line)
+        if m6:
+            # trailing '*' marks the default preset in the M6 list - drop it
+            extra["application"] = m6.group(1).rstrip(" *").strip()
 
     return extra
 

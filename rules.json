@@ -732,9 +732,14 @@
             "note": "User opened the probe/exam-mode selection screen \u2014 workflow context, not proof of active scanning on its own"
           },
           {
-            "regex": "Event:GUI List Selected\\]\\s*\\{\\{EM [^}]+\\}\\}",
+            "regex": "Event:GUI List Selected\\]\\s*\\{\\{([^}]+)\\}\\}",
             "weight": 0.6,
-            "note": "Exam-type preset selected from list (presets prefixed 'EM' \u2014 appear to be Emergency Medicine presets: EM SOFT TISSUE, EM IV ACCESS, EM FAST, EM RENAL etc.)"
+            "note": "Exam-type preset selected from the Probe and Exam Mode list. Originally matched only 'EM ...' presets (site-specific names: EM SOFT TISSUE, EM FAST etc.); widened because a real M6 with stock presets logs plain names like {{Lung}} and {{Adult Cardiac  *}}. Logged as [type:USR] on real units and [type:SYS] in the sample, so the type tag is not matched."
+          },
+          {
+            "regex": "\\[doppler\\.image\\] - Slot:\\d+, ID:0x[0-9a-fA-F]+, ProbeName:\\S+, exam mode:\\w+",
+            "weight": 0.5,
+            "note": "System applied probe + exam mode (logged at INFO at boot/probe activation, e.g. 'exam mode:PED_ABD_EXAM'). Context only."
           }
         ]
       }
@@ -782,6 +787,20 @@
             "note": "Broadened from an initial 3-pattern set (gain/depth/cine) after a second, larger batch of real logs surfaced 47 total SET/TOGGLE/RESET parameter-change variants (color gain, Doppler PRF, zoom, sector steering, needle guide, mode toggles, etc.). The original 3 were validated at 99.9-100% co-occurrence with active imaging; this broader pattern follows the same semantic (user actively changing an image parameter) so is trusted at a slightly lower weight pending the same clustering test on the new variants. application_context's SET_EXAM_TYPE_BY_NAME pattern is listed earlier in this file and claims that specific line first, so it won't double-fire here."
           }
         ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "\\[type:USR\\] \\[Event:GUI PushButton\\]\\s*Caption:\\{\\{Smart (VTI|IVC|B-line)\\}\\}",
+            "weight": 0.8,
+            "note": "User ran a Smart (AI) measurement tool - these operate on a live/just-acquired image, so they imply active scanning. Key signal on M6 units logging at INFO level, where the TRACE-level UImgController::StartScan!/StopScan! lines are absent. Only the [type:USR] PushButton line is matched; the [type:SYS] Peek UI1 and operation.replay echoes of the same press are not, to avoid double counting."
+          },
+          {
+            "regex": "\\[type:USR\\] \\[Event:GUI PushButton\\]\\s*Caption:\\{\\{B\\}\\}",
+            "weight": 0.6,
+            "note": "User pressed the B-mode imaging button - supporting evidence of live imaging on INFO-level M6 logs."
+          }
+        ]
       }
     }
   },
@@ -826,6 +845,15 @@
             "regex": "\\bRSIEVENT_SYSTEM_READY\\b",
             "weight": 1.0,
             "note": "System fully initialized and ready \u2014 session start boundary"
+          }
+        ]
+      },
+      "Mindray_M6": {
+        "patterns": [
+          {
+            "regex": "\\[doppler\\.state\\.power\\] - -{3,}Doppler Start-{3,}",
+            "weight": 1.0,
+            "note": "Application started \u2014 session boundary. Same banner as standard Mindray; confirmed in a real M6 log (Oct 2026)."
           }
         ]
       }
