@@ -1,0 +1,41 @@
+name: Archive repo traffic
+
+on:
+  schedule:
+    - cron: "17 6 * * *"   # daily, 06:17 UTC
+  workflow_dispatch:        # allow a manual run from the Actions tab
+
+permissions:
+  contents: write           # lets the built-in token commit traffic/ back
+
+concurrency:
+  group: traffic
+  cancel-in-progress: false
+
+jobs:
+  traffic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch traffic and update history
+        env:
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: python .github/scripts/update_traffic.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add traffic/
+          if git diff --cached --quiet; then
+            echo "No traffic changes."
+          else
+            git commit -m "Update traffic stats [skip ci]"
+            git push
+          fi

@@ -1,5 +1,7 @@
 # POCUS Ghost-Exam Detector
 
+![Repo views](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/briancgreen/POCUS-Ghost-Tracker/main/traffic/views-badge.json)
+
 Estimate the true number of point-of-care ultrasound (POCUS) exams performed on
 a device by mining its own system logs — including exams that were never
 documented in the EMR, never saved to PACS, and never saved anywhere at all.
